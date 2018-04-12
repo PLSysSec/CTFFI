@@ -1,0 +1,69 @@
+#!/usr/bin/python
+#
+# wrap FaCT compiler in C-like interface
+#
+# (C) 2018 Riad S. Wahby <rsw@cs.stanford.edu>
+#          and the FaCT authors
+#
+# NOTE: this *should* be compatible with both Python2 and Python3.
+#       Please check any edits against both.
+
+from __future__ import print_function
+import argparse
+import os.path
+import subprocess
+import sys
+
+class Consts(object):
+    # NOTE you might want to make these absolute paths
+    FACTPATH = ""
+    FACT = os.path.join(FACTPATH, "fact.byte")
+
+def main(myname):
+    # make sure we're acting on some input file
+    infile = None
+    for arg in sys.argv[1:]:
+        tmp = None
+        if arg[-5:] == '.fact':
+            tmp = arg
+
+        if tmp is not None:
+            if infile is not None:
+                raise RuntimeError("already found infile '%s', then also found '%s'" % (infile, tmp))
+            infile = tmp
+
+    # parse the arguments we care about (-c, -o, -O)
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-c', dest='comp', action='store_true')
+    parser.add_argument('-o', dest='out')
+    parser.add_argument('-O', dest='optlvl')
+    parser.set_defaults(comp=False)
+    parser.set_defaults(out=None)
+    parser.set_defaults(optlvl='0')
+    (parsed, _) = parser.parse_known_args()
+
+    # make sure we're being asked to do something sensible
+    if not parsed.comp or infile is None:
+        raise RuntimeError("fact-cc: appears we were not called in a valid way")
+
+    # start building FaCT call
+    cmd = [Consts.FACT, infile, '-generate-header']
+
+    # output file, if specified
+    if parsed.out is not None:
+        cmd += ['-o', parsed.out]
+
+    # figure out optimization level
+    if parsed.optlvl == 'fast':
+        cmd += ['-opt', 'OF']
+    elif parsed.optlvl == '2' or parsed.optlvl == '1' or parsed.optlvl == '0':
+        cmd += ['-opt', 'O' + parsed.optlvl]
+    else:
+        raise RuntimeError("fact-cc: invalid opt flag %s" % parsed.optlvl)
+
+    # now run the stuff we care about
+    if subprocess.call(cmd) != 0:
+        raise RuntimeError("fact-cc: fact returned non-zero status")
+
+if __name__ == "__main__":
+    main(os.path.basename(sys.argv[0]))
